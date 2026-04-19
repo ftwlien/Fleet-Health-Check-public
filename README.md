@@ -66,6 +66,22 @@ If you are already inside the repo folder, this shorter version also works:
 bash install-fleet-health-prereqs.sh
 ```
 
+### Uninstall / cleanup
+
+If you want to remove the Fleet Health Check sudoers rules and helper binary later:
+
+```bash
+bash uninstall-fleet-health-prereqs.sh
+```
+
+By default, that keeps packages installed and only removes the Fleet Health Check specific changes.
+
+If you really want to also remove packages that were installed for it:
+
+```bash
+REMOVE_PACKAGES=1 bash uninstall-fleet-health-prereqs.sh
+```
+
 This works on any network. It does **not** depend on any specific local LAN setup.
 
 What it does:
