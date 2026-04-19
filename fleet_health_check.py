@@ -619,6 +619,29 @@ def main():
         ('GPU Mem', 20),
     ]
 
+    def render_normal_two_line_rows():
+        top_cols = ['Rig', 'Status', 'Flags', 'Host', 'Vast', 'Docker', 'Containers', 'Container Hint']
+        bot_cols = ['GPU Temp', 'GPU Junc', 'GPU VRAM', 'GPU Util', 'GPU Mem', 'GPU Power', 'PCIe', 'NVMe', 'Load', 'Uptime']
+        top_widths = {
+            'Rig': 16, 'Status': 8, 'Flags': 24, 'Host': 18, 'Vast': 6, 'Docker': 6, 'Containers': 5, 'Container Hint': 18
+        }
+        bot_widths = {
+            'GPU Temp': 12, 'GPU Junc': 12, 'GPU VRAM': 12, 'GPU Util': 10, 'GPU Mem': 16, 'GPU Power': 12,
+            'PCIe': 6, 'NVMe': 10, 'Load': 12, 'Uptime': 16
+        }
+        top_header = ' | '.join(fmt_cell(colorize_header(name), top_widths[name]) for name in top_cols)
+        top_divider = '-+-'.join('-' * top_widths[name] for name in top_cols)
+        bot_header = ' | '.join(fmt_cell(colorize_header(name), bot_widths[name]) for name in bot_cols)
+        bot_divider = '-+-'.join('-' * bot_widths[name] for name in bot_cols)
+        print(top_header)
+        print(f'{DIM}{top_divider}{RESET}')
+        for idx, row in enumerate(rows):
+            print(' | '.join(fmt_cell(row[name], top_widths[name]) for name in top_cols))
+            print(' | '.join(fmt_cell(row[name], bot_widths[name]) for name in bot_cols))
+            if idx != len(rows) - 1:
+                print(f'{DIM}{bot_divider}{RESET}')
+                print()
+
     def render_once():
         if args.json:
             plain_rows = []
@@ -644,12 +667,7 @@ def main():
             print_side_by_side_blocks(rows)
             return
 
-        header = ' | '.join(fmt_cell(colorize_header(name), width) for name, width in columns)
-        divider = '-+-'.join('-' * width for _, width in columns)
-        print(header)
-        print(f'{DIM}{divider}{RESET}')
-        for row in rows:
-            print(' | '.join(fmt_cell(row[name], width) for name, width in columns))
+        render_normal_two_line_rows()
 
     if not args.watch and not args.watch_v2:
         render_once()
@@ -715,9 +733,20 @@ def main():
                 if idx != len(rows) - 1:
                     frame_lines.append('')
         else:
-            header = ' | '.join(fmt_cell(colorize_header(name), width) for name, width in columns)
-            divider = '-+-'.join('-' * width for _, width in columns)
-            frame_lines = [header, divider] + [' | '.join(fmt_cell(row[name], width) for name, width in columns) for row in rows]
+            top_cols = ['Rig', 'Status', 'Flags', 'Host', 'Vast', 'Docker', 'Containers', 'Container Hint']
+            bot_cols = ['GPU Temp', 'GPU Junc', 'GPU VRAM', 'GPU Util', 'GPU Mem', 'GPU Power', 'PCIe', 'NVMe', 'Load', 'Uptime']
+            top_widths = {'Rig': 16, 'Status': 8, 'Flags': 24, 'Host': 18, 'Vast': 6, 'Docker': 6, 'Containers': 5, 'Container Hint': 18}
+            bot_widths = {'GPU Temp': 12, 'GPU Junc': 12, 'GPU VRAM': 12, 'GPU Util': 10, 'GPU Mem': 16, 'GPU Power': 12, 'PCIe': 6, 'NVMe': 10, 'Load': 12, 'Uptime': 16}
+            top_header = ' | '.join(fmt_cell(colorize_header(name), top_widths[name]) for name in top_cols)
+            top_divider = '-+-'.join('-' * top_widths[name] for name in top_cols)
+            bot_divider = '-+-'.join('-' * bot_widths[name] for name in bot_cols)
+            frame_lines = [top_header, top_divider]
+            for idx, row in enumerate(rows):
+                frame_lines.append(' | '.join(fmt_cell(row[name], top_widths[name]) for name in top_cols))
+                frame_lines.append(' | '.join(fmt_cell(row[name], bot_widths[name]) for name in bot_cols))
+                if idx != len(rows) - 1:
+                    frame_lines.append(bot_divider)
+                    frame_lines.append('')
 
         rendered_snapshot = '\n'.join(strip_ansi(line) for line in frame_lines)
         if use_watch_v2 and rendered_snapshot == last_render:
