@@ -134,6 +134,92 @@ python3 fleet_health_check.py --flags --watch 5
 - `gputemps` is optional. If it cannot build/work on a machine, the script still works with normal GPU core temp from `nvidia-smi`.
 - Watch mode auto-fits better on narrower terminals.
 
+## Common flags
+
+**SSH FAILED**
+- the script could not SSH into the rig
+
+Check:
+```bash
+ssh user@IP
+```
+
+**IDLE**
+- no renter/container activity seen right now
+
+Check:
+```bash
+docker ps
+```
+
+**RENTED**
+- renter/container activity is detected
+
+Check:
+```bash
+docker ps
+```
+
+**LOW GPU LOAD**
+- rig looks rented but GPUs are barely being used
+
+Check:
+```bash
+nvidia-smi
+docker ps
+```
+
+**HOT**
+- one or more GPU temps are high
+
+Check:
+```bash
+nvidia-smi
+sudo gputemps --json --once
+```
+
+**PCIE X4**
+- GPU link width looks lower than expected
+
+Check:
+```bash
+nvidia-smi -q | grep -A 3 "Link Width"
+```
+
+**RECENT REBOOT**
+- machine looks freshly rebooted
+
+Check:
+```bash
+uptime -s
+who -b
+```
+
+**NVME WARN**
+- NVMe / SSD health check did not look clean
+
+Check:
+```bash
+sudo smartctl -H /dev/nvme0n1
+sudo smartctl -a /dev/nvme0n1
+```
+
+**FAILED SVCS**
+- one or more systemd units are failed
+
+Check:
+```bash
+systemctl --failed
+```
+
+**XID ERROR**
+- NVIDIA driver reported a real GPU Xid error
+
+Check:
+```bash
+journalctl -k | grep -i "NVRM: Xid"
+```
+
 ## Uninstall / cleanup
 
 Basic cleanup:
