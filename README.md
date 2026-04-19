@@ -78,10 +78,22 @@ Live watch mode:
 python3 fleet_health_check.py --watch 5
 ```
 
+Vertical watch mode:
+
+```bash
+python3 fleet_health_check.py --vertical --watch 5
+```
+
 Flags-only view:
 
 ```bash
 python3 fleet_health_check.py --flags
+```
+
+Flags watch mode:
+
+```bash
+python3 fleet_health_check.py --flags --watch 5
 ```
 
 ## Notes

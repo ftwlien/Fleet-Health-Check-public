@@ -10,8 +10,8 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 RIGS = [
-    ("rig1-hostname", "user@192.168.1.10"),
-    ("rig2-hostname", "user@192.168.1.11"),
+    ("rig1-hostname", "maskin9950xrig6@10.25.25.42"),
+    ("rig2-hostname", "maskin9950xrig6@10.25.25.42"),
 ]
 
 EXTRA_GPU_TEMP_CMD = os.environ.get('FLEET_GPU_TEMP_CMD', 'sudo -n gputemps --json --once')
@@ -630,9 +630,14 @@ def main():
         bot_header = ' | '.join(fmt_cell(colorize_header(name), bot_widths[name]) for name in bot_cols)
         bot_values_divider = '-+-'.join('-' * bot_widths[name] for name in bot_cols)
         for idx, row in enumerate(rendered_rows):
+            host_title = strip_ansi(str(row.get('Host') or row.get('Rig') or '')).strip()
+            if host_title:
+                lines.append(f'{BOLD}{PURPLE}{host_title}{RESET}')
+                lines.append('')
             lines.append(top_header)
             lines.append(f'{DIM}{top_values_divider}{RESET}')
             lines.append(' | '.join(fmt_cell(row[name], top_widths[name]) for name in top_cols))
+            lines.append('')
             lines.append('')
             lines.append(bot_header)
             lines.append(f'{DIM}{bot_values_divider}{RESET}')
@@ -640,6 +645,9 @@ def main():
             if idx != len(rendered_rows) - 1:
                 lines.append('')
                 lines.append('')
+                lines.append('')
+        lines.append('')
+        lines.append('')
         return lines
 
     def render_once():
@@ -680,8 +688,7 @@ def main():
     except Exception:
         interval = 5.0
 
-    if not args.flags and not args.json and not args.vertical:
-        args.vertical = True
+    # keep the user's chosen view in watch mode; default plain watch stays normal view
 
     use_watch_v2 = args.watch_v2 is not None
     if use_watch_v2:
