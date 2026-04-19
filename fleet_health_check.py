@@ -10,8 +10,8 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 RIGS = [
-    ("rig1-hostname", "maskin9950xrig6@10.25.25.42"),
-    ("rig2-hostname", "maskin9950xrig6@10.25.25.42"),
+    ("rig1-hostname", "user@192.168.1.10"),
+    ("rig2-hostname", "user@192.168.1.11"),
 ]
 
 EXTRA_GPU_TEMP_CMD = os.environ.get('FLEET_GPU_TEMP_CMD', 'sudo -n gputemps --json --once')
