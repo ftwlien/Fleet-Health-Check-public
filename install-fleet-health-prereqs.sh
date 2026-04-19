@@ -18,6 +18,9 @@ sudo apt update
 echo "-- install smartmontools and build deps"
 sudo apt install -y smartmontools build-essential libpci-dev curl
 
+echo "-- install NVML development headers if available"
+sudo apt install -y nvidia-cuda-toolkit || sudo apt install -y libnvidia-ml-dev || true
+
 SMARTCTL_PATH="$(command -v smartctl || true)"
 if [[ -z "$SMARTCTL_PATH" ]]; then
   echo "smartctl not found after install."
@@ -36,10 +39,13 @@ echo "-- install ThomasBaruzier gputemps helper"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 curl -fsSL https://raw.githubusercontent.com/ThomasBaruzier/gddr6-core-junction-vram-temps/refs/heads/main/gputemps.c -o "$TMP_DIR/gputemps.c"
-cc -O3 "$TMP_DIR/gputemps.c" -o "$TMP_DIR/gputemps" -lnvidia-ml -lpci
-sudo install -m 0755 "$TMP_DIR/gputemps" /usr/local/bin/gputemps
-echo "$USER_NAME ALL=(ALL) NOPASSWD: /usr/local/bin/gputemps" | sudo tee /etc/sudoers.d/gputemps-fleet-health-check >/dev/null
-sudo chmod 440 /etc/sudoers.d/gputemps-fleet-health-check
+if cc -O3 "$TMP_DIR/gputemps.c" -o "$TMP_DIR/gputemps" -lnvidia-ml -lpci; then
+  sudo install -m 0755 "$TMP_DIR/gputemps" /usr/local/bin/gputemps
+  echo "$USER_NAME ALL=(ALL) NOPASSWD: /usr/local/bin/gputemps" | sudo tee /etc/sudoers.d/gputemps-fleet-health-check >/dev/null
+  sudo chmod 440 /etc/sudoers.d/gputemps-fleet-health-check
+else
+  echo "WARN: gputemps build failed. Fleet Health Check will still work, but without junction/VRAM temps."
+fi
 
 echo "-- fix vast metrics launcher if present"
 if [[ -f /var/lib/vastai_kaalia/latest/launch_metrics_pusher.sh ]]; then
