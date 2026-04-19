@@ -620,13 +620,14 @@ def main():
     ]
 
     def render_normal_two_line_rows():
-        top_cols = ['Host', 'Status', 'Flags', 'Containers', 'GPU Temp', 'GPU Junc', 'GPU VRAM']
-        bot_cols = ['GPU Util', 'GPU Mem', 'GPU Power', 'PCIe', 'NVMe', 'Uptime']
+        top_cols = ['Rig', 'Status', 'Flags', 'Host', 'Vast', 'Docker', 'Containers', 'Container Hint']
+        bot_cols = ['GPU Temp', 'GPU Junc', 'GPU VRAM', 'GPU Util', 'GPU Mem', 'GPU Power', 'PCIe', 'NVMe', 'Load', 'Uptime']
         top_widths = {
-            'Host': 18, 'Status': 8, 'Flags': 24, 'Containers': 5, 'GPU Temp': 12, 'GPU Junc': 12, 'GPU VRAM': 12
+            'Rig': 16, 'Status': 8, 'Flags': 24, 'Host': 18, 'Vast': 6, 'Docker': 6, 'Containers': 5, 'Container Hint': 18
         }
         bot_widths = {
-            'GPU Util': 10, 'GPU Mem': 16, 'GPU Power': 12, 'PCIe': 6, 'NVMe': 10, 'Uptime': 16
+            'GPU Temp': 12, 'GPU Junc': 12, 'GPU VRAM': 12, 'GPU Util': 10, 'GPU Mem': 16, 'GPU Power': 12,
+            'PCIe': 6, 'NVMe': 10, 'Load': 12, 'Uptime': 16
         }
         top_header = ' | '.join(fmt_cell(colorize_header(name), top_widths[name]) for name in top_cols)
         top_divider = '-+-'.join('-' * top_widths[name] for name in top_cols)
@@ -732,10 +733,10 @@ def main():
                 if idx != len(rows) - 1:
                     frame_lines.append('')
         else:
-            top_cols = ['Host', 'Status', 'Flags', 'Containers', 'GPU Temp', 'GPU Junc', 'GPU VRAM']
-            bot_cols = ['GPU Util', 'GPU Mem', 'GPU Power', 'PCIe', 'NVMe', 'Uptime']
-            top_widths = {'Host': 18, 'Status': 8, 'Flags': 24, 'Containers': 5, 'GPU Temp': 12, 'GPU Junc': 12, 'GPU VRAM': 12}
-            bot_widths = {'GPU Util': 10, 'GPU Mem': 16, 'GPU Power': 12, 'PCIe': 6, 'NVMe': 10, 'Uptime': 16}
+            top_cols = ['Rig', 'Status', 'Flags', 'Host', 'Vast', 'Docker', 'Containers', 'Container Hint']
+            bot_cols = ['GPU Temp', 'GPU Junc', 'GPU VRAM', 'GPU Util', 'GPU Mem', 'GPU Power', 'PCIe', 'NVMe', 'Load', 'Uptime']
+            top_widths = {'Rig': 16, 'Status': 8, 'Flags': 24, 'Host': 18, 'Vast': 6, 'Docker': 6, 'Containers': 5, 'Container Hint': 18}
+            bot_widths = {'GPU Temp': 12, 'GPU Junc': 12, 'GPU VRAM': 12, 'GPU Util': 10, 'GPU Mem': 16, 'GPU Power': 12, 'PCIe': 6, 'NVMe': 10, 'Load': 12, 'Uptime': 16}
             top_header = ' | '.join(fmt_cell(colorize_header(name), top_widths[name]) for name in top_cols)
             top_divider = '-+-'.join('-' * top_widths[name] for name in top_cols)
             bot_divider = '-+-'.join('-' * bot_widths[name] for name in bot_cols)
