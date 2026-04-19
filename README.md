@@ -2,6 +2,37 @@
 
 Read-only SSH-based fleet health check for GPU servers, Docker hosts, and Vast rigs.
 
+## Quick summary
+
+This is a read-only SSH-based rig health script for checking GPU / Vast / Docker machines fast from one place.
+
+What it shows:
+- rig reachability
+- Docker / Vast status
+- idle vs rented hints
+- GPU temps / usage / power
+- PCIe width
+- NVMe health
+- failed services
+- reboot / uptime hints
+
+What the one-time installer does:
+- installs `smartmontools`
+- adds your user to the `docker` group
+- enables passwordless `smartctl`
+- tries to install/build `gputemps` for junction / VRAM temps
+- fixes some common fresh-rig permission issues
+
+What it does **not** do:
+- does not control Vast
+- does not change pricing
+- does not create renters / instances
+- does not need a Vast API key for normal health checks
+
+Important:
+- the computer running this script must have SSH access to every machine it wants information from
+- if SSH does not work, Fleet Health Check will fail too
+
 It gives you a fast snapshot of:
 - SSH reachability
 - Docker / Vast service state
