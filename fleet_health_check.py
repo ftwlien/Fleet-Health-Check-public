@@ -6,6 +6,8 @@ import re
 import sys
 import time
 import subprocess
+import urllib.request
+import urllib.parse
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -16,6 +18,7 @@ RIGS = [
 
 EXTRA_GPU_TEMP_CMD = os.environ.get('FLEET_GPU_TEMP_CMD', 'sudo -n gputemps --json --once')
 RIG_TEMP_PROBES_PATH = Path('/home/bot1/.openclaw/workspace/dashboard/rig-temp-probes.json')
+STATE_PATH = Path('.fleet_health_telegram_watch_state.json')
 
 REMOTE_SCRIPT = r'''
 set -e
@@ -458,6 +461,160 @@ def print_side_by_side_blocks(rows, block_width=52, gap=4, cols=None):
         print()
 
 
+
+def load_watch_state():
+    try:
+        return json.loads(STATE_PATH.read_text())
+    except Exception:
+        return {}
+
+
+def save_watch_state(state):
+    STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True))
+
+
+def infer_rented(row):
+    flags = strip_ansi(row.get('Flags', ''))
+    return 'RENTED' in flags
+
+
+def send_telegram_message(text, token, chat_id):
+    data = urllib.parse.urlencode({'chat_id': chat_id, 'text': text}).encode()
+    req = urllib.request.Request(f'https://api.telegram.org/bot{token}/sendMessage', data=data)
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        resp.read()
+
+
+def maybe_send_rent_transition_alerts(rows):
+    token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+    if not token or not chat_id:
+        print('telegram-watch: missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID', file=sys.stderr)
+        return
+    state = load_watch_state()
+    stable_needed = max(2, int(os.environ.get('FLEET_TELEGRAM_STABLE_HITS', '2')))
+    now = int(time.time())
+    startup_snapshot = not bool(state.get('_startup_snapshot_done'))
+
+    for row in rows:
+        host = strip_ansi(str(row.get('Host') or row.get('Rig') or '')).strip()
+        if not host:
+            continue
+
+        cur = 'rented' if infer_rented(row) else 'idle'
+        prev = state.get(host, {})
+        if prev.get('state') == cur:
+            prev['candidate'] = None
+            prev['hits'] = 0
+        else:
+            if prev.get('candidate') == cur:
+                prev['hits'] = int(prev.get('hits', 0)) + 1
+            else:
+                prev['candidate'] = cur
+                prev['hits'] = 1
+
+        alerts = []
+        startup_flags = []
+
+        if prev.get('candidate') == cur and int(prev.get('hits', 0)) >= stable_needed:
+            old_state = prev.get('state')
+            prev['state'] = cur
+            prev['candidate'] = None
+            prev['hits'] = 0
+            if old_state and old_state != cur:
+                if cur == 'rented':
+                    alerts.append(f"🟢 Fleet Health Check\n\nRig: {host}\nStatus: RENTED\nFlags: {strip_ansi(row.get('Flags','--'))}\nContainers: {strip_ansi(row.get('Containers','--'))}")
+                else:
+                    alerts.append(f"🔴 Fleet Health Check\n\nRig: {host}\nStatus: RENTED STOPPED / IDLE\nFlags: {strip_ansi(row.get('Flags','--'))}\nContainers: {strip_ansi(row.get('Containers','--'))}")
+
+        status_now = strip_ansi(str(row.get('Status', '--')))
+        status_prev = prev.get('last_status')
+
+        flags_now = [x.strip() for x in strip_ansi(str(row.get('Flags', ''))).split(',') if x.strip()]
+        flags_prev = prev.get('last_flags') or []
+        added = [f for f in flags_now if f not in flags_prev]
+        removed = [f for f in flags_prev if f not in flags_now]
+        noisy_flags = {'RENTED', 'IDLE', 'LOW GPU LOAD'}
+        important_flags = {'HOT', 'REBOOT PENDING', 'NVME WARN', 'FAILED SVCS', 'XID ERROR', 'CONTAINERS UNKNOWN'}
+
+        relevant_now = [f for f in flags_now if f in important_flags]
+        relevant_prev = [f for f in flags_prev if f in important_flags]
+        if status_prev and status_prev != status_now and relevant_now != relevant_prev:
+            icon = '🔴' if status_now == 'BAD' else ('🟡' if status_now == 'WATCH' else '🟢')
+            alerts.append(f"{icon} Fleet Health Check\n\nRig: {host}\nStatus changed: {status_prev} -> {status_now}\nFlags: {strip_ansi(row.get('Flags','--'))}")
+        prev['last_status'] = status_now
+        for flag in added:
+            if flag in noisy_flags or flag not in important_flags:
+                continue
+            alerts.append(f"🟠 Fleet Health Check\n\nRig: {host}\nFlag added: {flag}\nAll flags: {', '.join(flags_now) if flags_now else '--'}")
+        for flag in removed:
+            if flag in noisy_flags or flag not in important_flags:
+                continue
+            alerts.append(f"🟢 Fleet Health Check\n\nRig: {host}\nFlag cleared: {flag}\nAll flags: {', '.join(flags_now) if flags_now else '--'}")
+        prev['last_flags'] = flags_now
+
+        def extract_max_temp(field_value):
+            vals = []
+            text = strip_ansi(str(field_value or '--'))
+            for part in text.replace('·', ',').split(','):
+                part = part.replace('°C', '').strip()
+                if not part or part == '--':
+                    continue
+                try:
+                    vals.append(float(part))
+                except Exception:
+                    pass
+            return (max(vals) if vals else None), text
+
+        if startup_snapshot:
+            startup_flag_set = set(flags_now)
+            important_startup_flags = {'HOT', 'REBOOT PENDING', 'NVME WARN', 'FAILED SVCS', 'XID ERROR', 'CONTAINERS UNKNOWN', 'RENTED', 'IDLE'}
+            startup_flags = [f for f in flags_now if f in important_startup_flags]
+            if startup_flags:
+                alerts.append(f"📋 Fleet Health Check\n\nRig: {host}\nCurrent flags: {', '.join(startup_flags)}\nStatus: {status_now}\nContainers: {strip_ansi(row.get('Containers','--'))}")
+
+        core_max, core_text = extract_max_temp(row.get('GPU Temp', '--'))
+        junc_max, junc_text = extract_max_temp(row.get('GPU Junc', '--'))
+        vram_max, vram_text = extract_max_temp(row.get('GPU VRAM', '--'))
+        temp_summary = f"Core: {core_text} | Junction: {junc_text} | VRAM: {vram_text}"
+
+        core_hot_now = core_max is not None and core_max >= 80.0
+        core_hot_prev = bool(prev.get('core_hot_now'))
+        if core_hot_now and not core_hot_prev:
+            alerts.append(f"🔥 Fleet Health Check\n\nRig: {host}\nGPU Core Temp alert\n{temp_summary}\nFlags: {strip_ansi(row.get('Flags','--'))}")
+        elif core_hot_prev and not core_hot_now:
+            alerts.append(f"🧊 Fleet Health Check\n\nRig: {host}\nGPU Core Temp back below threshold\n{temp_summary}\nNote: other temp alerts may still be active.")
+        prev['core_hot_now'] = core_hot_now
+
+        junc_hot_now = junc_max is not None and junc_max >= 95.0
+        junc_hot_prev = bool(prev.get('junc_hot_now'))
+        if junc_hot_now and not junc_hot_prev:
+            alerts.append(f"🌋 Fleet Health Check\n\nRig: {host}\nGPU Junction Temp alert\n{temp_summary}\nFlags: {strip_ansi(row.get('Flags','--'))}")
+        elif junc_hot_prev and not junc_hot_now:
+            alerts.append(f"❄️ Fleet Health Check\n\nRig: {host}\nGPU Junction Temp back below threshold\n{temp_summary}\nNote: other temp alerts may still be active.")
+        prev['junc_hot_now'] = junc_hot_now
+
+        vram_hot_now = vram_max is not None and vram_max >= 90.0
+        vram_hot_prev = bool(prev.get('vram_hot_now'))
+        if vram_hot_now and not vram_hot_prev:
+            alerts.append(f"🧠 Fleet Health Check\n\nRig: {host}\nGPU VRAM Temp alert\n{temp_summary}\nFlags: {strip_ansi(row.get('Flags','--'))}")
+        elif vram_hot_prev and not vram_hot_now:
+            alerts.append(f"✅ Fleet Health Check\n\nRig: {host}\nGPU VRAM Temp back below threshold\n{temp_summary}\nNote: other temp alerts may still be active.")
+        prev['vram_hot_now'] = vram_hot_now
+
+        for msg in alerts:
+            try:
+                send_telegram_message(msg, token, chat_id)
+                prev['last_alert_at'] = now
+            except Exception as e:
+                prev['last_error'] = str(e)
+                break
+
+        state[host] = prev
+
+    state['_startup_snapshot_done'] = True
+    save_watch_state(state)
+
 def main():
     parser = argparse.ArgumentParser(description='Fleet Health Check')
     parser.add_argument('--vertical', action='store_true', help='show one rig per block instead of side-by-side table')
@@ -465,6 +622,7 @@ def main():
     parser.add_argument('--json', action='store_true', help='emit machine-readable JSON')
     parser.add_argument('--watch', nargs='?', const='5', help='refresh continuously every N seconds (default 5)')
     parser.add_argument('--watch-v2', nargs='?', const='5', dest='watch_v2', help='test watch-v2 renderer every N seconds (default 5)')
+    parser.add_argument('--telegram-watch', nargs='?', const='60', dest='telegram_watch', help='poll and send Telegram rent started/stopped alerts every N seconds (default 60)')
     args = parser.parse_args()
 
     results = {}
@@ -474,10 +632,11 @@ def main():
             label, data = fut.result()
             results[label] = data
 
-    def collect_plain_rows():
+    def collect_plain_rows(results_map=None):
+        results_map = results if results_map is None else results_map
         fresh_rows = []
         for label, _ in RIGS:
-            r = results[label]
+            r = results_map[label]
             if not r.get('ok'):
                 fresh_rows.append({
                     'Rig': label,
@@ -677,6 +836,23 @@ def main():
 
         for line in build_normal_two_line_frame(rows):
             print(line)
+
+    if args.telegram_watch is not None:
+        try:
+            interval = max(5.0, float(args.telegram_watch))
+        except Exception:
+            interval = 60.0
+        while True:
+            results = {}
+            with ThreadPoolExecutor(max_workers=len(RIGS) or 1) as ex:
+                futs = [ex.submit(run_rig, label, target) for label, target in RIGS]
+                for fut in as_completed(futs):
+                    label, data = fut.result()
+                    results[label] = data
+            rows = collect_plain_rows(results)
+            maybe_send_rent_transition_alerts(rows)
+            print(f'{DIM}telegram-watch poll complete; sleeping {interval:g}s{RESET}')
+            time.sleep(interval)
 
     if not args.watch and not args.watch_v2:
         render_once()
