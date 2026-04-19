@@ -55,7 +55,7 @@ It is meant to give you a fast operational snapshot across all rigs in one view,
 If you want the quickest path, run this once on each rig after cloning this repo:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/Fleet-Health-Check-public.git
+git clone https://github.com/ftwlien/Fleet-Health-Check-public.git
 cd Fleet-Health-Check-public
 bash install-fleet-health-prereqs.sh
 ```
