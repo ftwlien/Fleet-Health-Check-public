@@ -14,17 +14,10 @@ It gives you a fast snapshot of:
 
 ## Quick start
 
-### 1. Clone the repo
+### 1. One-time install on each rig
 
 ```bash
-git clone https://github.com/ftwlien/Fleet-Health-Check-public.git
-cd Fleet-Health-Check-public
-```
-
-### 2. Run the one-time installer on each rig
-
-```bash
-bash install-fleet-health-prereqs.sh
+git clone https://github.com/ftwlien/Fleet-Health-Check-public.git && cd Fleet-Health-Check-public && bash install-fleet-health-prereqs.sh
 ```
 
 That installs the required rig-side bits like:
