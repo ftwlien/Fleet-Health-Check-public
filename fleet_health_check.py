@@ -619,6 +619,24 @@ def main():
         ('GPU Mem', 20),
     ]
 
+    def build_normal_two_line_frame(rendered_rows):
+        top_cols = ['Rig', 'Status', 'Flags', 'Host', 'Vast', 'Docker', 'Containers', 'Container Hint', 'GPU Temp', 'GPU Junc', 'GPU VRAM', 'GPU Util', 'GPU Mem']
+        bot_cols = ['GPU Power', 'Driver', 'RAM', 'Boot', 'NTP', 'Net', 'PCIe', 'Reboot', 'NVMe', 'Failed', 'Load', 'Disk', 'Uptime', 'Verdict', 'Xid']
+        top_widths = {'Rig': 16, 'Status': 8, 'Flags': 24, 'Host': 18, 'Vast': 6, 'Docker': 6, 'Containers': 5, 'Container Hint': 18, 'GPU Temp': 12, 'GPU Junc': 12, 'GPU VRAM': 12, 'GPU Util': 10, 'GPU Mem': 16}
+        bot_widths = {'GPU Power': 12, 'Driver': 10, 'RAM': 16, 'Boot': 14, 'NTP': 4, 'Net': 12, 'PCIe': 6, 'Reboot': 6, 'NVMe': 10, 'Failed': 6, 'Load': 12, 'Disk': 16, 'Uptime': 16, 'Verdict': 18, 'Xid': 18}
+        lines = []
+        top_header = ' | '.join(fmt_cell(colorize_header(name), top_widths[name]) for name in top_cols)
+        top_divider = '-+-'.join('-' * top_widths[name] for name in top_cols)
+        bot_header = ' | '.join(fmt_cell(colorize_header(name), bot_widths[name]) for name in bot_cols)
+        bot_divider = '-+-'.join('-' * bot_widths[name] for name in bot_cols)
+        lines.extend([top_header, top_divider, bot_header, f'{DIM}{bot_divider}{RESET}'])
+        for idx, row in enumerate(rendered_rows):
+            lines.append(' | '.join(fmt_cell(row[name], top_widths[name]) for name in top_cols))
+            lines.append(' | '.join(fmt_cell(row[name], bot_widths[name]) for name in bot_cols))
+            if idx != len(rendered_rows) - 1:
+                lines.append('')
+        return lines
+
     def render_once():
         if args.json:
             plain_rows = []
@@ -644,12 +662,8 @@ def main():
             print_side_by_side_blocks(rows)
             return
 
-        header = ' | '.join(fmt_cell(colorize_header(name), width) for name, width in columns)
-        divider = '-+-'.join('-' * width for _, width in columns)
-        print(header)
-        print(f'{DIM}{divider}{RESET}')
-        for row in rows:
-            print(' | '.join(fmt_cell(row[name], width) for name, width in columns))
+        for line in build_normal_two_line_frame(rows):
+            print(line)
 
     if not args.watch and not args.watch_v2:
         render_once()
@@ -715,9 +729,7 @@ def main():
                 if idx != len(rows) - 1:
                     frame_lines.append('')
         else:
-            header = ' | '.join(fmt_cell(colorize_header(name), width) for name, width in columns)
-            divider = '-+-'.join('-' * width for _, width in columns)
-            frame_lines = [header, divider] + [' | '.join(fmt_cell(row[name], width) for name, width in columns) for row in rows]
+            frame_lines = build_normal_two_line_frame(rows)
 
         rendered_snapshot = '\n'.join(strip_ansi(line) for line in frame_lines)
         if use_watch_v2 and rendered_snapshot == last_render:
