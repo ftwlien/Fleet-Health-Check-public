@@ -626,14 +626,19 @@ def main():
         bot_widths = {'GPU Power': 12, 'Driver': 10, 'RAM': 16, 'Boot': 14, 'NTP': 4, 'Net': 12, 'PCIe': 6, 'Reboot': 6, 'NVMe': 10, 'Failed': 6, 'Load': 12, 'Disk': 16, 'Uptime': 16, 'Verdict': 18, 'Xid': 18}
         lines = []
         top_header = ' | '.join(fmt_cell(colorize_header(name), top_widths[name]) for name in top_cols)
-        top_divider = '-+-'.join('-' * top_widths[name] for name in top_cols)
+        top_values_divider = '-+-'.join('-' * top_widths[name] for name in top_cols)
         bot_header = ' | '.join(fmt_cell(colorize_header(name), bot_widths[name]) for name in bot_cols)
-        bot_divider = '-+-'.join('-' * bot_widths[name] for name in bot_cols)
-        lines.extend([top_header, top_divider, bot_header, f'{DIM}{bot_divider}{RESET}'])
+        bot_values_divider = '-+-'.join('-' * bot_widths[name] for name in bot_cols)
         for idx, row in enumerate(rendered_rows):
+            lines.append(top_header)
+            lines.append(f'{DIM}{top_values_divider}{RESET}')
             lines.append(' | '.join(fmt_cell(row[name], top_widths[name]) for name in top_cols))
+            lines.append('')
+            lines.append(bot_header)
+            lines.append(f'{DIM}{bot_values_divider}{RESET}')
             lines.append(' | '.join(fmt_cell(row[name], bot_widths[name]) for name in bot_cols))
             if idx != len(rendered_rows) - 1:
+                lines.append('')
                 lines.append('')
         return lines
 
