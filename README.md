@@ -146,6 +146,7 @@ ssh user@IP
 
 **IDLE**
 - no renter/container activity seen right now
+- this usually means the script did not detect an active customer container
 
 Check:
 ```bash
@@ -154,6 +155,8 @@ docker ps
 
 **RENTED**
 - renter/container activity is detected
+- this status is inferred from host-side container activity, not from the Vast API
+- if a customer container is running, the script will usually treat the rig as rented
 
 Check:
 ```bash
@@ -175,7 +178,8 @@ docker ps
 Check:
 ```bash
 nvidia-smi
-sudo gputemps --json --once
+./gputemps
+sudo ./gputemps
 ```
 
 **PCIE X4**
