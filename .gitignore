@@ -1,0 +1,18 @@
+# Local/private runtime state
+.env
+.fleet-alerts.env
+__pycache__/
+*.pyc
+*.pyo
+*.bak
+
+# Local watch/alert/baseline state
+.fleet_health_telegram_watch_state.json
+.fleet_health_nic_events_ack.json
+.fleet_health_security_baseline.json
+.fleet_health_security_alert_state.json
+
+# Private local scratch / extracted folders
+Fleet-Health-Check-public/
+
+.fleet_health_display_state.json
