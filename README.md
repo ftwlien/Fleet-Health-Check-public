@@ -51,7 +51,25 @@ The controller-side check is intended to be read-only. The optional installers m
 
 ## Quick start
 
-### 1. Clone
+Fleet Health Check has two sides:
+
+- **Controller machine** — where you run the dashboard. This can be your laptop, admin box, or one trusted management server.
+- **Target rigs** — the GPU/Vast/Docker hosts you want to monitor over SSH.
+
+The dashboard runs on the controller. The prerequisite installers run on each target rig.
+
+### Recommended simple install path
+
+1. Clone this repo on the **controller**.
+2. Edit the `RIGS` list with your rig labels and SSH targets.
+3. Confirm SSH works from the controller to every rig.
+4. Run the normal prerequisite installer on every **target rig**.
+5. Run the dashboard from the controller.
+6. Optional: install the security stack on every target rig.
+7. Optional: review security output, then save a trusted baseline.
+8. Optional: start Telegram monitoring.
+
+### 1. Clone on the controller
 
 ```bash
 git clone https://github.com/ftwlien/Fleet-Health-Check-public.git
@@ -75,29 +93,96 @@ Format:
 ("label-shown-in-dashboard", "ssh_user@ip_or_hostname")
 ```
 
-Test SSH first:
+Use short labels that make sense to you. The second value must be something your controller can SSH into.
+
+### 3. Test SSH from the controller
 
 ```bash
 ssh user@192.0.2.10 hostname
 ```
 
-If SSH does not work manually, Fleet Health Check cannot collect from that rig.
+Do this for each rig. If SSH does not work manually, Fleet Health Check cannot collect from that rig.
 
-### 3. Install target prerequisites on each rig
+Recommended SSH setup:
 
-Normal health prerequisites:
+- use SSH keys, not passwords, for unattended checks
+- make sure the controller can SSH without interactive prompts
+- use `ssh-copy-id user@host` if you need to install your public key
+
+### 4. Install normal health prerequisites on each target rig
+
+The normal installer must run on the **target rig**, not just on the controller.
+
+Option A — SSH into each rig, clone the repo there, and run the installer:
 
 ```bash
+ssh user@192.0.2.10
+
+git clone https://github.com/ftwlien/Fleet-Health-Check-public.git
+cd Fleet-Health-Check-public
 bash install-fleet-health-prereqs.sh
+exit
 ```
 
-Optional security monitoring stack:
+Option B — copy only the installer from the controller to each rig:
+
+```bash
+scp install-fleet-health-prereqs.sh user@192.0.2.10:/tmp/
+ssh user@192.0.2.10 'bash /tmp/install-fleet-health-prereqs.sh'
+```
+
+After the installer, reconnect SSH so Docker group membership applies:
+
+```bash
+ssh user@192.0.2.10 'docker ps'
+```
+
+If `docker ps` works without `sudo`, the dashboard can usually infer rented/idle container state correctly.
+
+### 5. Run your first dashboard from the controller
+
+```bash
+python3 fleet_health_check.py
+```
+
+Useful first sanity checks:
+
+```bash
+python3 fleet_health_check.py --flags
+python3 fleet_health_check.py --security
+python3 fleet_health_check.py --watch-v2 5
+```
+
+If something is wrong, start with `--flags`. It gives you the shortest view of what needs attention.
+
+### 6. Optional: install the security stack on each target rig
+
+Run this on each **target rig** if you want security drift monitoring:
 
 ```bash
 sudo bash install_fleet_security_stack.sh
 ```
 
-After the normal installer, reconnect SSH so Docker group membership applies.
+Or copy/run it from the controller:
+
+```bash
+scp install_fleet_security_stack.sh user@192.0.2.10:/tmp/
+ssh user@192.0.2.10 'sudo bash /tmp/install_fleet_security_stack.sh'
+```
+
+Then check security from the controller:
+
+```bash
+python3 fleet_health_check.py --security
+```
+
+If the output looks clean and expected, save the trusted baseline:
+
+```bash
+python3 fleet_health_check.py --security-baseline save
+```
+
+Do **not** save the baseline blindly. The baseline is what future security drift is compared against.
 
 ## About a full “install everything” command
 
@@ -241,14 +326,30 @@ Sends alerts for:
 
 ### Telegram configuration
 
-Set credentials with environment variables or a local `.env` file:
+Set credentials with environment variables or a local `.env` file on the controller.
+
+Create `.env` in the repo directory:
 
 ```bash
+cat > .env <<'EOF'
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
+EOF
 ```
 
-`.env`, alert state, and other runtime files are ignored by git.
+Then test one of the watcher modes:
+
+```bash
+python3 fleet_health_check.py --telegram-watch 60
+```
+
+Notes:
+
+- `.env` is loaded automatically by `fleet_health_check.py`.
+- `.env`, alert state, and other runtime files are ignored by git.
+- Never commit real bot tokens or chat IDs.
+- For Telegram bot tokens, create a bot with BotFather and put the token in `TELEGRAM_BOT_TOKEN`.
+- `TELEGRAM_CHAT_ID` must be the chat/user/group id where alerts should be sent.
 
 ### False-positive protection
 
@@ -541,6 +642,56 @@ Typical workflow:
 
 - `CLOCK UNSYNC`
   - NTP/time sync check failed repeatedly
+
+## Troubleshooting first install
+
+### `SSH FAILED`
+
+Run the same SSH target manually from the controller:
+
+```bash
+ssh user@192.0.2.10 hostname
+```
+
+Fix SSH before debugging Fleet Health Check. The tool cannot collect from a rig that the controller cannot SSH into.
+
+### Docker state is missing or wrong
+
+On the target rig:
+
+```bash
+docker ps
+```
+
+If that requires `sudo`, reconnect SSH after running the prerequisite installer. The installer adds the user to the `docker` group, but Linux group membership only refreshes on a new login.
+
+### GPU junction / VRAM temps are missing
+
+`gputemps` is optional. The dashboard still works without it, but junction/VRAM detail may be missing.
+
+Check on the target rig:
+
+```bash
+sudo -n /usr/local/bin/gputemps --json --once
+```
+
+If it fails, re-run the normal prerequisite installer or continue with regular `nvidia-smi` data.
+
+### NVMe health says permission denied
+
+Check on the target rig:
+
+```bash
+sudo -n smartctl -H /dev/nvme0n1
+```
+
+The normal installer adds a limited passwordless sudo rule for `smartctl` so the controller check can read drive health non-interactively.
+
+### Telegram watcher starts but sends nothing
+
+This is often normal on startup. Watchers seed current state silently so they do not spam old issues. They alert when something changes or when a confirmed problem persists according to the cooldown/stability rules.
+
+If you want to verify credentials, temporarily cause a harmless obvious state change or run a short test in a private chat.
 
 ## Display notes
 
